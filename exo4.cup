@@ -1,0 +1,222 @@
+import java.io.*; 
+import java_cup.runtime.*;
+import java.util.Map;
+
+
+parser code {:
+public static void main(String args[]) throws Exception {
+ new parser(new Yylex(new InputStreamReader(System.in))).parse();
+}
+
+public void syntax_error(Symbol cur_token) { 
+		// n'interrompt pas la compil... 
+		// on est par defaut dans l'etat error qui permet ensuite la recup
+		// par défaut : report_error("syntax error", null);
+		report_error("Syntaxe incorrecte <"+tokenToString(cur_token)+">", null);        
+	}
+
+	public void report_error(String message, Object info) {   
+		// n'interrompt pas la compil
+		if (info == null) System.err.println("Mon erreur <"+ ptext()+ "> ligne "+ pline() + ", colonne " + pcolumn() + " : " + message);
+		else System.err.println("Mon erreur <"+ptext()+ "> ligne "+ pline() + ", colonne " + pcolumn() + " : " +message+" : "+info);
+		System.err.println("-> mais on continue l'analyse... ");
+	}
+	
+	public void report_semantic_error(String message) {   
+		// n'interrompt pas la compil
+		System.err.println("Mon erreur <"+ ptext()+ "> ligne "+ pline() + ", colonne " + pcolumn() + " : " + message);
+		System.err.println("-> mais on continue l'analyse... ");
+	}
+
+	public void unrecovered_syntax_error(Symbol cur_token) {
+    	// par defaut : report_fatal_error("Couldn't repair and continue parse", null);
+		// on n'a pas reussi a faire de la recup
+		report_fatal_error("Recuperation impossible <"+tokenToString(cur_token)+">", null);   // interrompt la compil     
+	}
+
+	public void report_fatal_error(String message, Object info) {  
+		// qd cette fct est appelee, message vaut par defaut "Couldn't repair and continue parse"
+		String m = "Mon erreur fatale <"+ ptext()+ "> ligne " + pline() + ", colonne " + pcolumn() + " : " + message;
+		if (info == null) System.err.println(m);
+		else System.err.println(m+" : "+info);
+		System.err.println("-> arrêt de l'analyse...");
+		done_parsing(); // interrompt la compil
+  	}
+  	
+  	public int pline(){
+		return ((Yylex)getScanner()).getYyLine();
+	}
+	public int pcolumn(){
+		return ((Yylex)getScanner()).getYyColumn();
+	}
+	public String ptext(){
+		return ((Yylex)getScanner()).getYyText();
+	}
+
+
+public String tokenToString (Symbol token) {
+// qqs exemples pour voir...
+     switch (token.sym) {
+	case sym.VRAI : return "VRAI"; 
+	case sym.FAUX : return "FAUX"; 
+	case sym.ET : return "ET"; 
+	case sym.OU : return "OU"; 
+	case sym.NON : return "NON"; 
+	case sym.PRINT : return "PRINT"; 
+	case sym.PLUS : return "PLUS"; 
+	case sym.MULT : return "MULT";
+	case sym.LPAR : return "LPAR"; 
+	case sym.RPAR : return "RPAR"; 
+	case sym.AFF : return "AFF";
+	case sym.INF : return "INF"; 
+	case sym.EGAL : return "EGAL";
+	case sym.NB : return "NB "+token.value;   
+	case sym.VARE : return "VARE "+token.value;  
+	case sym.VARB : return "VARB "+token.value;  
+	//  ... A compléter !!
+	default : return "Token imprévu ou error";
+	}
+}
+
+
+
+
+:}
+action code {:
+public java.util.Map<String,Boolean> symtab = new java.util.HashMap<>();
+
+public java.util.Map<String,Integer> symtabent = new java.util.HashMap<>();
+
+public Integer symTabGeten(String v){
+   Integer val = symtabent.get(v);
+
+   symtabent.put(v,val);
+   return val;
+}
+
+
+public Boolean symTabGet(String v){
+   Boolean val = symtab.get(v);
+   
+   if(val!=null) return val;
+   System.out.println("Attention : "+ v +" non initialiser");
+   symtab.put(v,false);
+   return false;
+}
+
+int nb = 0;
+String val = "-";
+
+:}
+
+terminal LPAR, RPAR,AFF,VRAI,FAUX,ET,OU,NON,INF,EGAL,PRINT;
+terminal String VARE,VARB;
+terminal MULT,PLUS;
+terminal Integer NB;
+
+
+non terminal axiome; 
+non terminal expr_list,expr_listbool;
+non terminal Integer expr;
+non terminal Boolean expb,expbb;
+non terminal String prin;
+non terminal Boolean geserreurb;
+
+
+
+precedence left PLUS;
+precedence left MULT;
+
+precedence left OU;
+precedence left ET;
+precedence left NON;
+
+axiome ::= expr_list  {: 
+                 System.out.println("Au Revoir");:}
+           | {: System.out.println("Entrer vide ! "); :};
+           
+expr_list ::= expr_list expr:e {: 
+                         
+                           if(e==null){
+                           }else {
+                           System.out.println(val +":entier "+e); 
+                            val = "-";
+                           }
+                            
+                            
+                            
+                      
+               :}
+               
+              | expr:e {: 
+                        if(e==null){
+                           }else {
+                           System.out.println(val +":entier "+e); 
+                            val = "-";
+                           }
+                            
+                   
+              :} 
+              
+              | expr_list expb:e 
+              {:    
+                   
+                      System.out.println(val +": boolean "+e);
+                      val = "-";
+              :}
+              
+              | expb:e {: 
+               
+                         
+                      System.out.println(val +" : boolean " +e);
+                      val = "-";
+             
+               :} 
+               | expr_list geserreurb | geserreurb| expr_list prin | prin;
+
+
+expr ::= NB:n {: RESULT=n; :}
+         | expr:l PLUS expr:r {: RESULT = new Integer(l.intValue() + r.intValue()); :}
+         | expr:l MULT expr:r {: RESULT = new Integer(l.intValue() * r.intValue()); :}
+         | LPAR expr:e RPAR {: RESULT = e; :}
+         | VARE:v {: RESULT= symTabGeten(v);:}
+         | VARE:v AFF expr:e {: RESULT = e; symtabent.put(v,e); 
+            
+            val = v;:}
+         |error ;
+                     
+         
+expb  ::= VRAI {: RESULT= true; :}
+         | FAUX {: RESULT= false; :}
+         | LPAR expb:e RPAR {: RESULT = e; :}
+         | expb:l ET expb:r {: RESULT= l && r; :}
+         | expb:l OU expb:r {: RESULT= l || r; :}
+         | NON expb:r {: RESULT= !r; :}
+         | VARB:v {: RESULT= symTabGet(v);:}
+         | VARB:v AFF expb:e {: RESULT = e; symtab.put(v,e); 
+            val = v;
+         :}
+         |expr:l INF expr:r {: RESULT = l < r ; :}
+         |expr:l EGAL expr:r {: RESULT = l == r ; :};
+         
+         
+geserreurb ::= expbb PLUS:p {: parser.report_semantic_error("Erreur de type<"+p+">"); :}
+            |expbb MULT:p {: parser.report_semantic_error("Erreur de type<"+p+">"); :};
+            
+prin ::= PRINT {: 
+                System.out.println("les Valeurs des variables sont :");
+                for(Map.Entry entry: symtab.entrySet()) {
+                  System.out.println(entry.getKey()+" : entier "+entry.getValue());
+                 }
+                 
+                 for(Map.Entry entry: symtabent.entrySet()) {
+                  System.out.println(entry.getKey()+" : boolean "+entry.getValue());
+                 } ;:};
+        
+         
+         
+
+         
+
+         
+ 
